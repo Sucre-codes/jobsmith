@@ -26,4 +26,12 @@ export const JobAnalysis = z.object({
   ),
 });
 
+export const AnalysisResult = z.discriminatedUnion("kind", [
+  JobAnalysis.extend({ kind: z.literal("job_posting") }),
+  z.object({ kind: z.literal("job_list") }),
+  z.object({ kind: z.literal("not_a_job") }),
+]);
+
+export type AnalysisResult = z.infer<typeof AnalysisResult>;
+
 export type JobAnalysis = z.infer<typeof JobAnalysis>;

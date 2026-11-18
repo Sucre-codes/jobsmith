@@ -1,25 +1,43 @@
-import { useEffect, useState } from "react";
-import { FIELD_CATALOG } from "@jobsmith/shared";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+import { useState } from "react";
+import JobInput from "./components/JobInput";
+import type { Analysis } from "./api";
 
 export default function App() {
-  const [status, setStatus] = useState("checking...");
-
-  useEffect(() => {
-    fetch(`${API_URL}/health`)
-      .then((res) => res.json())
-      .then((data) => setStatus(data.ok ? "API connected" : "API error"))
-      .catch(() => setStatus("API unreachable"));
-  }, []);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-slate-900">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-slate-900 p-4">
       <h1 className="text-4xl font-bold text-white">Jobsmith</h1>
-      <p className="text-slate-300">{status}</p>
-      <p className="text-slate-400 text-sm">
-        {FIELD_CATALOG.length} fields in the shared catalog
-      </p>
+
+      {analysis === null ? (
+        <JobInput onDone={setAnalysis} />
+      ) : (
+        <div className="w-full max-w-xl rounded-2xl bg-slate-800 p-6 text-slate-200">
+          <p className="text-sm text-slate-400">Detected job</p>
+          <h2 className="text-2xl font-semibold text-white">{analysis.title}</h2>
+          {analysis.company && <p>{analysis.company}</p>}
+
+          <p className="mt-3 text-sm text-slate-400">Skills</p>
+          <p>{analysis.skills.join(", ")}</p>
+
+          <p className="mt-3 text-sm text-slate-400">We will ask for</p>
+          <ul className="list-disc pl-5">
+            {analysis.fields.map((f) => (
+              <li key={f.key}>
+                {f.label}
+                {f.required ? " (required)" : ""}
+              </li>
+            ))}
+          </ul>
+
+          <button
+            onClick={() => setAnalysis(null)}
+            className="mt-4 text-sm text-indigo-300 underline"
+          >
+            Start over
+          </button>
+        </div>
+      )}
     </div>
   );
 }
