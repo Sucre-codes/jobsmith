@@ -17,9 +17,6 @@ export default function App() {
           <h2 className="text-2xl font-semibold text-white">{analysis.title}</h2>
           {analysis.company && <p>{analysis.company}</p>}
 
-          <p className="mt-3 text-sm text-slate-400">Skills</p>
-          <p>{analysis.skills.join(", ")}</p>
-
           <p className="mt-3 text-sm text-slate-400">We will ask for</p>
           <ul className="list-disc pl-5">
             {analysis.fields.map((f) => (

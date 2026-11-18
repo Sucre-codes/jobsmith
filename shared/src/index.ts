@@ -7,30 +7,72 @@ export const FIELD_CATALOG = [
   "behance",
   "certifications",
   "tools",
-  "languages",
+  "spokenLanguages",
+  "skills",
   "experience",
   "education",
   "projects",
 ] as const;
 
+export const ROLE_TYPES = [
+  "software",
+  "data",
+  "design",
+  "security",
+  "marketing",
+  "writing",
+  "product",
+  "support",
+  "sales",
+  "operations",
+  "other",
+] as const;
+
+export type RoleType = (typeof ROLE_TYPES)[number];
+
 export const JobAnalysis = z.object({
   title: z.string(),
   company: z.string().optional(),
-  skills: z.array(z.string()),
+  roleType: z.enum(ROLE_TYPES),
   fields: z.array(
     z.object({
       key: z.enum(FIELD_CATALOG),
       label: z.string(),
       required: z.boolean(),
+      options: z.array(z.string()).default([]),
     })
   ),
 });
+
+export type JobAnalysis = z.infer<typeof JobAnalysis>;
+
+const Options = z.array(z.string()).default([]);
+
+export const AiReading = z.object({
+  title: z.string(),
+  company: z.string().optional(),
+  roleType: z.enum(ROLE_TYPES),
+  skills: Options,
+  tools: Options,
+  certifications: Options,
+  spokenLanguages: Options,
+});
+
+export type AiReading = z.infer<typeof AiReading>;
+
+export const AiResult = z.discriminatedUnion("kind", [
+  AiReading.extend({ kind: z.literal("job_posting") }),
+  z.object({ kind: z.literal("job_list") }),
+  z.object({ kind: z.literal("not_a_job") }),
+]);
 
 export const AnalysisResult = z.discriminatedUnion("kind", [
   JobAnalysis.extend({ kind: z.literal("job_posting") }),
   z.object({ kind: z.literal("job_list") }),
   z.object({ kind: z.literal("not_a_job") }),
 ]);
+
+export type AnalysisResult = z.infer<typeof AnalysisResult>;
 
 const Text = z.string().trim().max(200);
 const Url = z.union([
@@ -75,7 +117,8 @@ export const Profile = z.object({
   behance: Url.default(""),
   certifications: TagList.default([]),
   tools: TagList.default([]),
-  languages: TagList.default([]),
+  skills: TagList.default([]),
+  spokenLanguages: TagList.default([]),
   experience: z.array(ExperienceItem).max(10).default([]),
   education: z.array(EducationItem).max(5).default([]),
   projects: z.array(ProjectItem).max(8).default([]),
@@ -93,7 +136,8 @@ export function emptyProfile(): ProfileDraft {
     behance: "",
     certifications: [],
     tools: [],
-    languages: [],
+    skills: [],
+    spokenLanguages: [],
     experience: [],
     education: [],
     projects: [],
@@ -118,16 +162,12 @@ export const FIELD_SPECS = {
   behance: { kind: "url", label: "Behance profile", prefix: "https://www.behance.net/", placeholder: "yourname" },
   certifications: { kind: "tags", label: "Certifications", placeholder: "Type one, then press Enter" },
   tools: { kind: "tags", label: "Tools", placeholder: "Type one, then press Enter" },
-  languages: { kind: "tags", label: "Languages", placeholder: "Type one, then press Enter" },
+  spokenLanguages: { kind: "tags", label: "spoken Languages", placeholder: "English, French" },
   experience: { kind: "list", label: "Work experience" },
   education: { kind: "list", label: "Education" },
   projects: { kind: "list", label: "Projects" },
+    skills: { kind: "tags", label: "Skills", placeholder: "Type one, then press Enter" },
 } satisfies Record<FieldKey, FieldSpec>;
-
-export type AnalysisResult = z.infer<typeof AnalysisResult>;
-
-export type JobAnalysis = z.infer<typeof JobAnalysis>;
-
 
 export function cleanUsername(input: string, prefix: string): string {
   const bare = prefix.replace(/^https?:\/\/(www\.)?/i, "").toLowerCase();
@@ -151,3 +191,41 @@ export function normalizeWebsite(input: string): string {
   if (!v) return "";
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
+
+export const TAG_KEYS = ["skills", "tools", "certifications", "spokenLanguages"] as const;
+export type TagKey = (typeof TAG_KEYS)[number];
+
+export function prefillFromAnalysis(
+  draft: ProfileDraft,
+  fields: { key: FieldKey; options: string[] }[]
+): ProfileDraft {
+  const next: ProfileDraft = { ...draft };
+  for (const key of TAG_KEYS) {
+    const field = fields.find((f) => f.key === key);
+    if (!field) continue;
+    const merged = [...(next[key] ?? [])];
+    for (const option of field.options) {
+      if (merged.length >= 30) break;
+      if (merged.some((t) => t.toLowerCase() === option.toLowerCase())) continue;
+      merged.push(option);
+    }
+    next[key] = merged;
+  }
+  return next;
+}
+
+export const ROLE_FIELDS: Record<RoleType, FieldKey[]> = {
+  software: ["experience", "education", "skills", "tools", "projects", "github", "portfolio", "linkedin"],
+  data: ["experience", "education", "skills", "tools", "projects", "github", "portfolio", "linkedin"],
+  design: ["experience", "education", "skills", "tools", "portfolio", "behance", "linkedin"],
+  security: ["experience", "education", "skills", "tools", "certifications", "projects", "github", "linkedin"],
+  marketing: ["experience", "education", "skills", "tools", "portfolio", "linkedin"],
+  writing: ["experience", "education", "skills", "tools", "portfolio", "linkedin"],
+  product: ["experience", "education", "skills", "tools", "portfolio", "linkedin"],
+  support: ["experience", "education", "skills", "tools", "linkedin"],
+  sales: ["experience", "education", "skills", "tools", "linkedin"],
+  operations: ["experience", "education", "skills", "tools", "linkedin"],
+  other: ["experience", "education", "skills", "tools", "linkedin"],
+};
+
+export const REQUIRED_FIELDS: FieldKey[] = ["skills","education","experience"];
