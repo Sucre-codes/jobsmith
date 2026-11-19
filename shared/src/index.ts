@@ -34,6 +34,7 @@ export const JobAnalysis = z.object({
   title: z.string(),
   company: z.string().optional(),
   roleType: z.enum(ROLE_TYPES),
+ yearsRequired: z.number().nullable(),
   fields: z.array(
     z.object({
       key: z.enum(FIELD_CATALOG),
@@ -52,6 +53,7 @@ export const AiReading = z.object({
   title: z.string(),
   company: z.string().optional(),
   roleType: z.enum(ROLE_TYPES),
+  yearsRequired: z.number().int().min(0).max(40).nullable().catch(null),
   skills: Options,
   tools: Options,
   certifications: Options,
@@ -80,7 +82,6 @@ const Url = z.union([
   z.string().trim().url().max(300).regex(/^https?:\/\//i),
 ]);
 const TagList = z.array(z.string().trim().min(1).max(60)).max(30);
-const Bullets = z.array(z.string().trim().min(1).max(300)).max(8);
 
 export const Basics = z.object({
   name: z.string().trim().min(1).max(100),
@@ -89,24 +90,33 @@ export const Basics = z.object({
   location: Text.default(""),
 });
 
-export const ExperienceItem = z.object({
-  company: z.string().trim().min(1).max(150),
-  title: z.string().trim().min(1).max(150),
-  start: Text,
-  end: Text.default(""),
-  bullets: Bullets.default([]),
-});
+const MONTH_FORMAT = /^\d{4}-(0[1-9]|1[0-2])$/;
+const MonthText = z.string().regex(MONTH_FORMAT);
+
+export const ExperienceItem = z
+  .object({
+    company: z.string().trim().min(1).max(150),
+    title: z.string().trim().min(1).max(150),
+    start: MonthText,
+    end: z.string().default(""),
+    current: z.boolean().default(false),
+    result: Text.default(""),
+  })
+  .refine((e) => e.current || (MONTH_FORMAT.test(e.end) && e.end >= e.start), {
+    path: ["end"],
+    message: "End date must be a real month, not before the start",
+  });
 
 export const EducationItem = z.object({
   school: z.string().trim().min(1).max(150),
   degree: Text.default(""),
-  year: Text.default(""),
+  year: z.string().regex(/^(\d{4})?$/).default(""),
 });
 
 export const ProjectItem = z.object({
   name: z.string().trim().min(1).max(150),
   url: Url.default(""),
-  bullets: Bullets.default([]),
+  description: Text.default(""),
 });
 
 export const Profile = z.object({
@@ -125,7 +135,7 @@ export const Profile = z.object({
 });
 
 export type Profile = z.infer<typeof Profile>;
-export type ProfileDraft = z.input<typeof Profile>;
+export type ProfileDraft = Profile;
 
 export function emptyProfile(): ProfileDraft {
   return {
@@ -229,3 +239,66 @@ export const ROLE_FIELDS: Record<RoleType, FieldKey[]> = {
 };
 
 export const REQUIRED_FIELDS: FieldKey[] = ["skills","education","experience"];
+
+export type ExperienceItem = z.infer<typeof ExperienceItem>;
+export type EducationItem = z.infer<typeof EducationItem>;
+export type ProjectItem = z.infer<typeof ProjectItem>;
+
+export const emptyExperience = (): ExperienceItem => ({
+  company: "",
+  title: "",
+  start: "",
+  end: "",
+  current: false,
+  result: "",
+});
+export const emptyProject = (): ProjectItem => ({ name: "", url: "", description: "" });
+export const emptyEducation = (): EducationItem => ({ school: "", degree: "", year: "" });
+
+
+function monthIndex(ym: string): number | null {
+  if (!MONTH_FORMAT.test(ym)) return null;
+  const [y, m] = ym.split("-").map(Number);
+  return y * 12 + (m - 1);
+}
+
+export function experienceMonths(
+  items: { start: string; end: string; current: boolean }[],
+  now: Date = new Date()
+): number {
+  const nowIndex = now.getFullYear() * 12 + now.getMonth();
+  const spans: [number, number][] = [];
+
+  for (const item of items) {
+    const s = monthIndex(item.start);
+    const rawEnd = item.current ? nowIndex : monthIndex(item.end);
+    if (s === null || rawEnd === null) continue;
+    const e = Math.min(rawEnd, nowIndex);
+    if (e < s) continue;
+    spans.push([s, e]);
+  }
+
+  spans.sort((a, b) => a[0] - b[0]);
+
+  let total = 0;
+  let open: [number, number] | null = null;
+  for (const [s, e] of spans) {
+    if (open && s <= open[1]) {
+      open[1] = Math.max(open[1], e);
+    } else {
+      if (open) total += open[1] - open[0] + 1;
+      open = [s, e];
+    }
+  }
+  if (open) total += open[1] - open[0] + 1;
+  return total;
+}
+
+export function formatDuration(months: number): string {
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  const parts: string[] = [];
+  if (y) parts.push(`${y} year${y === 1 ? "" : "s"}`);
+  if (m || !y) parts.push(`${m} month${m === 1 ? "" : "s"}`);
+  return parts.join(" ");
+}

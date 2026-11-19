@@ -32,6 +32,7 @@ If "kind" is "job_posting", return exactly these keys:
 - "title": the job title, short.
 - "company": the hiring company's name, or "" if the posting does not name one.
 - "roleType": the closest match, one of: ${ROLE_TYPES.join(", ")}. Examples: software = developers, engineers, QA and DevOps; data = analysts, data scientists and ML; design = UI, UX, graphic and visual design; security = cybersecurity; support = customer support and community; operations = admin, finance, HR and logistics,etc.
+- "yearsRequired": the minimum years of work experience the posting asks for, as a whole number, or null if it names none. For a range like 3-5 years, use 5.
 - "skills": up to 12 skills the job asks for. Include programming languages, frameworks, methods and abilities. Examples: Python, React, SEO, negotiation.
 - "tools": up to 12 software, platforms and equipment the job names/needs. Examples: Git, Figma, Jira, AWS.
 - "certifications": certifications or licenses the job names. [] if none.
@@ -111,6 +112,7 @@ export async function analyzeJob(text: string): Promise<AnalysisResult> {
       title: reading.title,
       company: reading.company,
       roleType: reading.roleType,
+      yearsRequired: reading.yearsRequired,
       fields: buildFields(reading),
     };
   }
