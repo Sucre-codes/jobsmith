@@ -309,3 +309,22 @@ export function isFieldValid(key: FieldKey, value: unknown): boolean {
   return (Profile.shape[key] as z.ZodType).safeParse(value).success;
 }
 
+const L = z.string();
+const LA = z.array(z.string());
+
+export const DraftSchema = z.object({
+  basics: z.object({ name: L, email: L, phone: L, location: L }),
+  github: L,
+  portfolio: L,
+  linkedin: L,
+  behance: L,
+  certifications: LA,
+  tools: LA,
+  spokenLanguages: LA,
+  skills: LA,
+  experience: z.array(
+    z.object({ company: L, title: L, start: L, end: L, current: z.boolean(), result: L })
+  ),
+  education: z.array(z.object({ school: L, degree: L, year: L })),
+  projects: z.array(z.object({ name: L, url: L, description: L })),
+});

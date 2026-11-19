@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   emptyProfile,
   prefillFromAnalysis,
@@ -9,9 +9,14 @@ import type { Analysis } from "../api";
 import { validateBasics, validateFields } from "../validate";
 import TextField from "./TextField";
 import FieldRenderer from "./FieldRenderer";
+import { saveSession } from "../storage";
+import SavedProfilePicker from "./SavedProfilePicker";
+import { saveProfile, touchProfile, type SavedProfile } from "../saved";
 
 type Props = {
   analysis: Analysis;
+  initialDraft?: ProfileDraft;
+  initialStep?: number;
   onRestart: () => void;
 };
 
@@ -23,13 +28,7 @@ const PAGES: { title: string; keys: FieldKey[] }[] = [
   { title: "Your links", keys: ["github", "portfolio", "linkedin", "behance"] },
 ];
 
-export default function Wizard({ analysis, onRestart }: Props) {
-  const [draft, setDraft] = useState<ProfileDraft>(() =>
-    prefillFromAnalysis(emptyProfile(), analysis.fields)
-  );
-  const [stepIndex, setStepIndex] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-
+export default function Wizard({ analysis, initialDraft, initialStep, onRestart }: Props) {
   const steps = useMemo<Step[]>(() => {
     const present = new Set<FieldKey>(analysis.fields.map((f) => f.key));
     const pages = PAGES.map((p) => ({
@@ -44,6 +43,20 @@ export default function Wizard({ analysis, onRestart }: Props) {
     ];
   }, [analysis]);
 
+  const [draft, setDraft] = useState<ProfileDraft>(
+    () => initialDraft ?? prefillFromAnalysis(emptyProfile(), analysis.fields)
+  );
+  const [stepIndex, setStepIndex] = useState(() =>
+    Math.min(Math.max(initialStep ?? 0, 0), steps.length - 1)
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [usedName, setUsedName] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    saveSession({ analysis, draft, step: stepIndex });
+  }, [analysis, draft, stepIndex]);
+
   const step = steps[stepIndex];
   const total = steps.length + 1;
   const current = stepIndex + 2;
@@ -55,6 +68,23 @@ export default function Wizard({ analysis, onRestart }: Props) {
 
   function setBasics(patch: Partial<ProfileDraft["basics"]>) {
     setField("basics", { ...draft.basics, ...patch });
+  }
+
+    function applySaved(p: SavedProfile) {
+    touchProfile(p.id);
+    setDraft(prefillFromAnalysis(p.draft, analysis.fields));
+    setUsedName(p.draft.basics.name || p.draft.basics.email);
+    setError(null);
+  }
+
+  function clearForm() {
+    setDraft(prefillFromAnalysis(emptyProfile(), analysis.fields));
+    setUsedName(null);
+  }
+
+  function saveDetails() {
+    saveProfile(draft);
+    setSaved(true);
   }
 
   function go(to: number) {
@@ -101,6 +131,19 @@ export default function Wizard({ analysis, onRestart }: Props) {
       <div className="flex flex-col gap-5">
         {step.id === "basics" && (
           <>
+                      {usedName ? (
+              <div className="rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-200">
+                <p>
+                  Filled from the saved details for {usedName}. Check every page before you
+                  generate.
+                </p>
+                <button type="button" onClick={clearForm} className="mt-1 underline">
+                  Not you? Clear form
+                </button>
+              </div>
+            ) : draft.basics.name === "" && draft.basics.email === "" ? (
+              <SavedProfilePicker onUse={applySaved} />
+            ) : null}
             <TextField
               label="Full name"
               required
@@ -141,12 +184,25 @@ export default function Wizard({ analysis, onRestart }: Props) {
           />
         ))}
 
-        {step.id === "review" && (
-          <div>
+               {step.id === "review" && (
+          <div className="flex flex-col gap-3">
             <p className="text-sm text-slate-300">
               Your details are ready. Generating the resume comes next.
             </p>
-            <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-300">
+            <button
+              type="button"
+              onClick={saveDetails}
+              className="rounded-lg bg-slate-700 px-4 py-2.5 text-sm text-slate-100"
+            >
+              Save my details on this device
+            </button>
+            {saved && (
+              <p className="text-sm text-emerald-300">
+                Saved on this device only. You can delete them any time with the link at the
+                bottom of the page.
+              </p>
+            )}
+            <pre className="max-h-96 overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-300">
               {JSON.stringify(draft, null, 2)}
             </pre>
           </div>
