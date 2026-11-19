@@ -6,6 +6,7 @@ type Props = {
   onChange: (tags: string[]) => void;
   placeholder?: string;
   required?: boolean;
+  hint?: string;
 };
 
 const MAX_TAGS = 30;
@@ -16,6 +17,7 @@ export default function TagInput({
   onChange,
   placeholder,
   required,
+  hint,
 }: Props) {
   const id = useId();
   const [draft, setDraft] = useState("");
@@ -42,7 +44,7 @@ export default function TagInput({
         {label}
         {required && <span className="text-amber-300"> *</span>}
       </label>
-
+        {hint && <p className="mb-1 text-xs text-slate-400">{hint}</p>}
       <div className="flex flex-wrap gap-2 rounded-lg bg-slate-900 p-2 ring-1 ring-slate-700 focus-within:ring-indigo-500">
         {value.map((tag, i) => (
           <span

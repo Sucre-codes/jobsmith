@@ -7,6 +7,7 @@ type Props = {
   placeholder?: string;
   required?: boolean;
   maxLength?: number;
+  type?: "text" | "email" | "tel";
 };
 
 export default function TextField({
@@ -16,6 +17,7 @@ export default function TextField({
   placeholder,
   required,
   maxLength = 150,
+  type ="text"
 }: Props) {
   const id = useId();
 
@@ -27,7 +29,7 @@ export default function TextField({
       </label>
       <input
         id={id}
-        type="text"
+        type={type}
         value={value}
         maxLength={maxLength}
         placeholder={placeholder}

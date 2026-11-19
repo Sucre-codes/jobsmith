@@ -302,3 +302,10 @@ export function formatDuration(months: number): string {
   if (m || !y) parts.push(`${m} month${m === 1 ? "" : "s"}`);
   return parts.join(" ");
 }
+
+export const specOf = (key: FieldKey): FieldSpec => FIELD_SPECS[key];
+
+export function isFieldValid(key: FieldKey, value: unknown): boolean {
+  return (Profile.shape[key] as z.ZodType).safeParse(value).success;
+}
+
