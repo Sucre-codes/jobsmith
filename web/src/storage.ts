@@ -1,13 +1,15 @@
-import { AnalysisResult, DraftSchema, type ProfileDraft } from "@jobsmith/shared";
+import { AnalysisResult, DraftSchema, GenerateResponse, type ProfileDraft } from "@jobsmith/shared";
 import type { Analysis } from "./api";
 
+
 const KEY = "jobsmith:session";
-const VERSION = 1;
+const VERSION = 3;
 
 export type Session = {
   analysis: Analysis;
   draft: ProfileDraft;
   step: number;
+  result: GenerateResponse | null;
 };
 
 export function saveSession(session: Session): void {
@@ -35,6 +37,8 @@ export function loadSession(): Session | null {
     const analysis = AnalysisResult.safeParse(raw?.analysis);
     const draft = DraftSchema.safeParse(raw?.draft);
     const step = Number(raw?.step);
+    const resultCheck =
+      raw?.result == null ? null : GenerateResponse.safeParse(raw.result);
 
     if (
       raw?.v !== VERSION ||
@@ -42,13 +46,19 @@ export function loadSession(): Session | null {
       analysis.data.kind !== "job_posting" ||
       !draft.success ||
       !Number.isInteger(step) ||
-      step < 0
+        step < 0 ||
+      (resultCheck !== null && !resultCheck.success)
     ) {
       clearSession();
       return null;
     }
 
-    return { analysis: analysis.data, draft: draft.data, step };
+       return {
+      analysis: analysis.data,
+      draft: draft.data,
+      step,
+      result: resultCheck && resultCheck.success ? resultCheck.data : null,
+    };
   } catch {
     return null;
   }

@@ -4,6 +4,7 @@ import {
   prefillFromAnalysis,
   type FieldKey,
   type ProfileDraft,
+  type GenerateResponse
 } from "@jobsmith/shared";
 import type { Analysis } from "../api";
 import { validateBasics, validateFields } from "../validate";
@@ -12,12 +13,17 @@ import FieldRenderer from "./FieldRenderer";
 import { saveSession } from "../storage";
 import SavedProfilePicker from "./SavedProfilePicker";
 import { saveProfile, touchProfile, type SavedProfile } from "../saved";
+import { buildRequest, describeGenerateError, generate } from "../generate";
+import Results from "./Results";
+import { saveApplication } from "../application";
 
 type Props = {
   analysis: Analysis;
   initialDraft?: ProfileDraft;
   initialStep?: number;
+  initialResult?: GenerateResponse | null;
   onRestart: () => void;
+  onFinish: () => void;
 };
 
 type Step = { id: string; title: string; keys: FieldKey[] };
@@ -28,7 +34,7 @@ const PAGES: { title: string; keys: FieldKey[] }[] = [
   { title: "Your links", keys: ["github", "portfolio", "linkedin", "behance"] },
 ];
 
-export default function Wizard({ analysis, initialDraft, initialStep, onRestart }: Props) {
+export default function Wizard({ analysis, initialDraft, initialStep,   initialResult, onRestart,onFinish }: Props) {
   const steps = useMemo<Step[]>(() => {
     const present = new Set<FieldKey>(analysis.fields.map((f) => f.key));
     const pages = PAGES.map((p) => ({
@@ -52,10 +58,13 @@ export default function Wizard({ analysis, initialDraft, initialStep, onRestart 
   const [error, setError] = useState<string | null>(null);
   const [usedName, setUsedName] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [result, setResult] = useState<GenerateResponse | null>(initialResult ?? null);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
 
-  useEffect(() => {
-    saveSession({ analysis, draft, step: stepIndex });
-  }, [analysis, draft, stepIndex]);
+    useEffect(() => {
+    saveSession({ analysis, draft, step: stepIndex, result });
+  }, [analysis, draft, stepIndex, result]);
 
   const step = steps[stepIndex];
   const total = steps.length + 1;
@@ -87,6 +96,26 @@ export default function Wizard({ analysis, initialDraft, initialStep, onRestart 
     setSaved(true);
   }
 
+    async function generateNow() {
+    setGenError(null);
+    const built = buildRequest(analysis, draft);
+    if (!built.ok) {
+      setGenError(built.message);
+      return;
+    }
+    setGenerating(true);
+    const outcome = await generate(built.request);
+    setGenerating(false);
+
+    if (outcome.ok) {
+      saveApplication({ analysis, draft, result: outcome.result });
+      setResult(outcome.result);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    setGenError(describeGenerateError(outcome.error, outcome.retryAfter));
+  }
+
   function go(to: number) {
     setError(null);
     setStepIndex(to);
@@ -101,6 +130,22 @@ export default function Wizard({ analysis, initialDraft, initialStep, onRestart 
       return;
     }
     go(stepIndex + 1);
+  }
+
+    if (result) {
+    return (
+      <Results
+        result={result}
+        busy={generating}
+        error={genError}
+        onEdit={() => {
+          setResult(null);
+          setGenError(null);
+        }}
+        onRegenerate={generateNow}
+        onRestart={onFinish}
+      />
+    );
   }
 
   return (
@@ -184,10 +229,11 @@ export default function Wizard({ analysis, initialDraft, initialStep, onRestart 
           />
         ))}
 
-               {step.id === "review" && (
+                      {step.id === "review" && (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-slate-300">
-              Your details are ready. Generating the resume comes next.
+              Everything is filled in. Jobsmith will now write your resume and cover letter for
+              this job.
             </p>
             <button
               type="button"
@@ -202,9 +248,17 @@ export default function Wizard({ analysis, initialDraft, initialStep, onRestart 
                 bottom of the page.
               </p>
             )}
-            <pre className="max-h-96 overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-300">
-              {JSON.stringify(draft, null, 2)}
-            </pre>
+            <button
+              type="button"
+              onClick={generateNow}
+              disabled={generating}
+              className="rounded-lg bg-indigo-500 py-3 font-semibold text-white disabled:opacity-60"
+            >
+              {generating
+                ? "Writing your resume... this can take up to a minute"
+                : "Generate resume and cover letter"}
+            </button>
+            {genError && <p className="text-sm text-amber-300">{genError}</p>}
           </div>
         )}
       </div>

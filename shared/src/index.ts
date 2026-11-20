@@ -35,6 +35,7 @@ export const JobAnalysis = z.object({
   company: z.string().optional(),
   roleType: z.enum(ROLE_TYPES),
  yearsRequired: z.number().nullable(),
+   jobText: z.string(),
   fields: z.array(
     z.object({
       key: z.enum(FIELD_CATALOG),
@@ -100,7 +101,6 @@ export const ExperienceItem = z
     start: MonthText,
     end: z.string().default(""),
     current: z.boolean().default(false),
-    result: Text.default(""),
   })
   .refine((e) => e.current || (MONTH_FORMAT.test(e.end) && e.end >= e.start), {
     path: ["end"],
@@ -250,7 +250,7 @@ export const emptyExperience = (): ExperienceItem => ({
   start: "",
   end: "",
   current: false,
-  result: "",
+  
 });
 export const emptyProject = (): ProjectItem => ({ name: "", url: "", description: "" });
 export const emptyEducation = (): EducationItem => ({ school: "", degree: "", year: "" });
@@ -323,8 +323,77 @@ export const DraftSchema = z.object({
   spokenLanguages: LA,
   skills: LA,
   experience: z.array(
-    z.object({ company: L, title: L, start: L, end: L, current: z.boolean(), result: L })
+    z.object({ company: L, title: L, start: L, end: L, current: z.boolean() })
   ),
   education: z.array(z.object({ school: L, degree: L, year: L })),
   projects: z.array(z.object({ name: L, url: L, description: L })),
 });
+
+export const GenerateRequest = z.object({
+  jobText: z.string().trim().min(50).max(12_000),
+  job: z.object({
+    title: z.string().trim().min(1).max(150),
+    company: z.string().trim().max(150).default(""),
+    roleType: z.enum(ROLE_TYPES),
+    keywords: z.array(z.string().trim().min(1).max(60)).max(50).default([]),
+  }),
+  profile: Profile,
+});
+
+export type GenerateRequest = z.infer<typeof GenerateRequest>;
+
+const Bullet = z.string().trim().min(10).max(300);
+
+export const AiWriting = z.object({
+  summary: z.string().trim().min(20).max(600),
+  experience: z
+    .array(z.object({ index: z.number().int().min(0), bullets: z.array(Bullet).min(1).max(6) }))
+    .default([]),
+  projects: z
+    .array(z.object({ index: z.number().int().min(0), bullets: z.array(Bullet).min(1).max(3) }))
+    .default([]),
+  coverLetter: z.string().trim().min(100).max(3000),
+});
+
+export type AiWriting = z.infer<typeof AiWriting>;
+
+export const ResumeDoc = z.object({
+  basics: Basics,
+  links: z.array(z.object({ label: z.string(), url: z.string() })),
+  summary: z.string(),
+  experience: z.array(
+    z.object({
+      title: z.string(),
+      company: z.string(),
+      start: z.string(),
+      end: z.string(),
+      current: z.boolean(),
+      bullets: z.array(z.string()),
+    })
+  ),
+  projects: z.array(
+    z.object({ name: z.string(), url: z.string(), bullets: z.array(z.string()) })
+  ),
+  education: z.array(z.object({ school: z.string(), degree: z.string(), year: z.string() })),
+  skills: z.array(z.string()),
+  tools: z.array(z.string()),
+  certifications: z.array(z.string()),
+  spokenLanguages: z.array(z.string()),
+});
+
+export type ResumeDoc = z.infer<typeof ResumeDoc>;
+
+export const GenerateResponse = z.object({
+  resume: ResumeDoc,
+  coverLetter: z.string(),
+});
+
+export type GenerateResponse = z.infer<typeof GenerateResponse>;
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+export function formatMonth(ym: string): string {
+  if (!MONTH_FORMAT.test(ym)) return ym;
+  const [y, m] = ym.split("-");
+  return `${MONTH_NAMES[Number(m) - 1]} ${y}`;
+}

@@ -9,20 +9,24 @@ export class AiBusyError extends Error {
 }
 
 export class AiRequestError extends Error {}
+export class AiJsonError extends AiRequestError {}
 
-type Message = { role: "system" | "user"; content: string };
+export type Message = { role: "system" | "user" | "assistant"; content: string };
 
 type ChatReply = { choices?: { message?: { content?: unknown } }[] };
 
-export async function chatJson(messages: Message[]): Promise<string> {
+export async function chatJson(
+  messages: Message[],
+  options: { maxTokens?: number; model?: string; timeoutMs?: number } = {}
+): Promise<string> {
   const pool = getPool();
   const baseUrl = process.env.AI_BASE_URL;
-  const model = process.env.AI_MODEL;
+    const model = options.model || process.env.AI_MODEL;
   if (!baseUrl || !model || pool.size === 0) {
     throw new Error("AI is not configured");
   }
 
-  const maxAttempts = Math.max(3, pool.size);
+  const maxAttempts = Math.min(3, pool.size);
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const k = pool.acquire();
@@ -39,9 +43,10 @@ export async function chatJson(messages: Message[]): Promise<string> {
           model,
           messages,
           temperature: 0.2,
+          max_tokens: options.maxTokens ?? 1500,
           response_format: { type: "json_object" },
         }),
-        signal: AbortSignal.timeout(30_000),
+         signal: AbortSignal.timeout(options.timeoutMs ?? 30_000),
       });
 
       if (res.ok) {
@@ -64,16 +69,29 @@ export async function chatJson(messages: Message[]): Promise<string> {
         continue;
       }
 
-     if (res.status >= 400 && res.status < 500) {
-  const detail = (await res.text()).slice(0, 300);
-  throw new AiRequestError(`AI request rejected (${res.status}): ${detail}`);
-}
+         if (res.status >= 400 && res.status < 500) {
+        const detail = (await res.text()).slice(0, 300);
+        if (res.status === 400 && detail.includes("json_validate_failed")) {
+          throw new AiJsonError(detail);
+        }
+        throw new AiRequestError(`AI request rejected (${res.status}): ${detail}`);
+      }
+      if (res.status >= 500) {
+        const detail = await res.text().catch(() => "");
+        console.error("[AI Provider] Server error:", res.status, detail.slice(0, 500));
 
+        pool.cooldown(k, 10);
+        continue;
+      }
       pool.cooldown(k, 10);
     } catch (err) {
-      if (err instanceof AiRequestError) throw err;
-      pool.cooldown(k, 10);
-    }
+  if (err instanceof AiRequestError) throw err;
+
+  console.error("[AI Client] Request failed:", err);
+
+
+  pool.cooldown(k, 10);
+}
   }
 
   const wait = pool.secondsUntilFree();

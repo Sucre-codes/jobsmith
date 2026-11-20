@@ -83,11 +83,12 @@ function buildFields(reading: AiReading): JobAnalysis["fields"] {
 }
 
 export async function analyzeJob(text: string): Promise<AnalysisResult> {
+    const jobText = text.slice(0, MAX_CHARS);
   const messages = [
     { role: "system" as const, content: SYSTEM_PROMPT },
     {
       role: "user" as const,
-      content: `<text>\n${text.slice(0, MAX_CHARS)}\n</text>`,
+           content: `<text>\n${jobText}\n</text>`,
     },
   ];
 
@@ -113,6 +114,7 @@ export async function analyzeJob(text: string): Promise<AnalysisResult> {
       company: reading.company,
       roleType: reading.roleType,
       yearsRequired: reading.yearsRequired,
+      jobText,
       fields: buildFields(reading),
     };
   }

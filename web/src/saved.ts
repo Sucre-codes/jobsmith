@@ -12,6 +12,10 @@ export type SavedProfile = {
   draft: ProfileDraft;
 };
 
+export function withoutJobSpecific(draft: ProfileDraft): ProfileDraft {
+  return { ...draft, skills: [], tools: [], certifications: [] };
+}
+
 function write(list: SavedProfile[]): void {
   try {
     localStorage.setItem(KEY, JSON.stringify({ v: VERSION, profiles: list }));
@@ -27,8 +31,10 @@ export function listProfiles(): SavedProfile[] {
     const raw = JSON.parse(text);
     if (raw?.v !== VERSION || !Array.isArray(raw.profiles)) return [];
 
-    const now = Date.now();
+       const now = Date.now();
     const kept: SavedProfile[] = [];
+    let changed = false;
+
     for (const item of raw.profiles) {
       const draft = DraftSchema.safeParse(item?.draft);
       const savedAt = Number(item?.savedAt);
@@ -40,10 +46,15 @@ export function listProfiles(): SavedProfile[] {
       ) {
         continue;
       }
-      kept.push({ id: item.id, savedAt, draft: draft.data });
+
+      const d = draft.data;
+      if (d.skills.length > 0 || d.tools.length > 0 || d.certifications.length > 0) {
+        changed = true;
+      }
+      kept.push({ id: item.id, savedAt, draft: withoutJobSpecific(d) });
     }
 
-    if (kept.length !== raw.profiles.length) write(kept);
+    if (changed || kept.length !== raw.profiles.length) write(kept);
     return kept.sort((a, b) => b.savedAt - a.savedAt);
   } catch {
     return [];
@@ -55,7 +66,11 @@ export function saveProfile(draft: ProfileDraft): void {
   const others = listProfiles().filter(
     (p) => p.draft.basics.email.trim().toLowerCase() !== email
   );
-  const entry: SavedProfile = { id: crypto.randomUUID(), savedAt: Date.now(), draft };
+    const entry: SavedProfile = {
+    id: crypto.randomUUID(),
+    savedAt: Date.now(),
+    draft: withoutJobSpecific(draft),
+  };
   write([entry, ...others].slice(0, MAX_PROFILES));
 }
 

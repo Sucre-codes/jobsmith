@@ -58,13 +58,6 @@ export default function ExperienceList({
             />
             I currently work here
           </label>
-            <TextField
-            label="A result you're proud of (optional)"
-            value={item.result}
-            maxLength={200}
-            onChange={(v) => update({ result: v })}
-            placeholder="Only if you have one, with its real number"
-          />
         </>
       )}
     />
