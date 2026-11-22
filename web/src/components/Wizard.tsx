@@ -16,6 +16,11 @@ import { saveProfile, touchProfile, type SavedProfile } from "../saved";
 import { buildRequest, describeGenerateError, generate } from "../generate";
 import Results from "./Results";
 import { saveApplication } from "../application";
+import { downloadAll } from "../pdf/download";
+import TemplatePicker from "./TemplatePicker";
+import { getTemplateId, setTemplateId } from "../pdf/preference";
+import type { TemplateId } from "../pdf/styles";
+import { useToast } from "../toast";
 
 type Props = {
   analysis: Analysis;
@@ -35,6 +40,7 @@ const PAGES: { title: string; keys: FieldKey[] }[] = [
 ];
 
 export default function Wizard({ analysis, initialDraft, initialStep,   initialResult, onRestart,onFinish }: Props) {
+    const toast = useToast();
   const steps = useMemo<Step[]>(() => {
     const present = new Set<FieldKey>(analysis.fields.map((f) => f.key));
     const pages = PAGES.map((p) => ({
@@ -55,12 +61,15 @@ export default function Wizard({ analysis, initialDraft, initialStep,   initialR
   const [stepIndex, setStepIndex] = useState(() =>
     Math.min(Math.max(initialStep ?? 0, 0), steps.length - 1)
   );
+  const job = { title: analysis.title, company: analysis.company ?? "" };
+
   const [error, setError] = useState<string | null>(null);
   const [usedName, setUsedName] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [result, setResult] = useState<GenerateResponse | null>(initialResult ?? null);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [template, setTemplate] = useState<TemplateId>(() => getTemplateId());
 
     useEffect(() => {
     saveSession({ analysis, draft, step: stepIndex, result });
@@ -77,6 +86,10 @@ export default function Wizard({ analysis, initialDraft, initialStep,   initialR
 
   function setBasics(patch: Partial<ProfileDraft["basics"]>) {
     setField("basics", { ...draft.basics, ...patch });
+  }
+    function onTemplate(id: TemplateId) {
+    setTemplate(id);
+    setTemplateId(id);
   }
 
     function applySaved(p: SavedProfile) {
@@ -96,7 +109,7 @@ export default function Wizard({ analysis, initialDraft, initialStep,   initialR
     setSaved(true);
   }
 
-    async function generateNow() {
+   async function generateNow(auto: boolean) {
     setGenError(null);
     const built = buildRequest(analysis, draft);
     if (!built.ok) {
@@ -107,13 +120,24 @@ export default function Wizard({ analysis, initialDraft, initialStep,   initialR
     const outcome = await generate(built.request);
     setGenerating(false);
 
-    if (outcome.ok) {
-      saveApplication({ analysis, draft, result: outcome.result });
-      setResult(outcome.result);
-      window.scrollTo({ top: 0 });
+    if (!outcome.ok) {
+      setGenError(describeGenerateError(outcome.error, outcome.retryAfter));
       return;
     }
-    setGenError(describeGenerateError(outcome.error, outcome.retryAfter));
+
+    saveApplication({ analysis, draft, result: outcome.result });
+    setResult(outcome.result);
+    window.scrollTo({ top: 0 });
+
+    if (!auto) return;
+    try {
+      await downloadAll(outcome.result, job, template);
+      toast.success(
+        "Your files are downloading. ."
+      );
+    } catch {
+      toast.error("We couldn't start the downloads automatically. Use the download buttons.");
+    }
   }
 
   function go(to: number) {
@@ -138,11 +162,14 @@ export default function Wizard({ analysis, initialDraft, initialStep,   initialR
         result={result}
         busy={generating}
         error={genError}
+        template={template}
+        onTemplate={onTemplate}
+        job={job}
         onEdit={() => {
           setResult(null);
           setGenError(null);
         }}
-        onRegenerate={generateNow}
+        onRegenerate={() => generateNow(false)}
         onRestart={onFinish}
       />
     );
@@ -229,28 +256,31 @@ export default function Wizard({ analysis, initialDraft, initialStep,   initialR
           />
         ))}
 
-                      {step.id === "review" && (
-          <div className="flex flex-col gap-3">
+                             {step.id === "review" && (
+          <div className="flex flex-col gap-4">
             <p className="text-sm text-slate-300">
-              Everything is filled in. Jobsmith will now write your resume and cover letter for
+              Everything is filled in. Pick a look for your resume, then Jobsmith will write it for
               this job.
             </p>
+
+            <TemplatePicker value={template} onChange={onTemplate} withPreview />
+
             <button
               type="button"
               onClick={saveDetails}
               className="rounded-lg bg-slate-700 px-4 py-2.5 text-sm text-slate-100"
             >
-              Save my details on this device
+              Save my details 
             </button>
             {saved && (
               <p className="text-sm text-emerald-300">
-                Saved on this device only. You can delete them any time with the link at the
-                bottom of the page.
+                Saved on this device. You can delete everything with the link at the bottom of the page.
               </p>
             )}
+
             <button
               type="button"
-              onClick={generateNow}
+              onClick={() => generateNow(true)}
               disabled={generating}
               className="rounded-lg bg-indigo-500 py-3 font-semibold text-white disabled:opacity-60"
             >

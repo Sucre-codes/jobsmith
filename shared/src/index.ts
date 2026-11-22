@@ -397,3 +397,48 @@ export function formatMonth(ym: string): string {
   const [y, m] = ym.split("-");
   return `${MONTH_NAMES[Number(m) - 1]} ${y}`;
 }
+
+export function dateRange(start: string, end: string, current: boolean): string {
+  return `${formatMonth(start)} - ${current ? "Present" : formatMonth(end)}`;
+}
+
+export function contactLine(b: { email: string; phone: string; location: string }): string {
+  return [b.email, b.phone, b.location].filter(Boolean).join(" | ");
+}
+
+export function linkText(l: { label: string; url: string }): string {
+  return `${l.label}: ${l.url}`;
+}
+
+export function educationLine(e: { school: string; degree: string; year: string }): string {
+  return [e.degree, e.school, e.year].filter(Boolean).join(", ");
+}
+
+export function skillLines(r: ResumeDoc): string[] {
+  const lines: string[] = [];
+  if (r.skills.length > 0) lines.push(`Skills: ${r.skills.join(", ")}`);
+  if (r.tools.length > 0) lines.push(`Tools: ${r.tools.join(", ")}`);
+  if (r.certifications.length > 0) lines.push(`Certifications: ${r.certifications.join(", ")}`);
+  if (r.spokenLanguages.length > 0) lines.push(`Languages: ${r.spokenLanguages.join(", ")}`);
+  return lines;
+}
+
+function safeName(s: string): string {
+  return s
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/g, "");
+}
+
+export function fileNames(name: string, company: string, jobTitle: string) {
+  const who = safeName(name) || "Candidate";
+  const where = safeName(company) || safeName(jobTitle) || "Job";
+  return {
+    resumePdf: `${who}-Resume-${where}.pdf`,
+    letterPdf: `${who}-Cover-Letter-${where}.pdf`,
+    letterTxt: `${who}-Cover-Letter-${where}.txt`,
+  };
+}

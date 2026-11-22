@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { formatMonth, type GenerateResponse } from "@jobsmith/shared";
+import {
+  contactLine,
+  dateRange,
+  educationLine,
+  linkText,
+  type GenerateResponse,
+} from "@jobsmith/shared";
+import DownloadPanel from "./DownloadPanel";
+import type { JobInfo } from "../pdf/download";
+import type { TemplateId } from "../pdf/styles";
 
 type Props = {
   result: GenerateResponse;
@@ -8,9 +17,12 @@ type Props = {
   onEdit: () => void;
   onRegenerate: () => void;
   onRestart: () => void;
+    job: JobInfo;
+    template: TemplateId;
+  onTemplate: (id: TemplateId) => void;
 };
 
-export default function Results({ result, busy, error, onEdit, onRegenerate, onRestart }: Props) {
+export default function Results({ result, busy, error, onEdit, onRegenerate, onRestart,job,template,onTemplate }: Props) {
   const { resume: r, coverLetter } = result;
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
@@ -26,7 +38,7 @@ export default function Results({ result, busy, error, onEdit, onRegenerate, onR
     }
   }
 
-  const contact = [r.basics.email, r.basics.phone, r.basics.location].filter(Boolean);
+  const contact = contactLine(r.basics);
   const heading = "mt-5 border-b border-slate-600 pb-1 text-sm font-semibold uppercase tracking-wide text-slate-300";
 
   return (
@@ -37,13 +49,14 @@ export default function Results({ result, busy, error, onEdit, onRegenerate, onR
         Review before you send. This was written by AI from your details and the job posting, so
         edit anything that doesn't match what you actually did.
       </div>
+             <DownloadPanel result={result} job={job} template={template} onTemplate={onTemplate} />
 
       <div className="mt-5 text-slate-200">
         <p className="text-xl font-bold text-white">{r.basics.name}</p>
-        <p className="text-sm text-slate-400">{contact.join(" | ")}</p>
+        <p className="text-sm text-slate-400">{contact}</p>
         {r.links.length > 0 && (
           <p className="text-sm text-slate-400">
-            {r.links.map((l) => `${l.label}: ${l.url}`).join(" | ")}
+            {r.links.map(linkText).join(" | ")}
           </p>
         )}
 
@@ -57,7 +70,7 @@ export default function Results({ result, busy, error, onEdit, onRegenerate, onR
               {e.title}, {e.company}
             </p>
             <p className="text-slate-400">
-              {formatMonth(e.start)} - {e.current ? "Present" : formatMonth(e.end)}
+              {dateRange(e.start, e.end, e.current)}
             </p>
             <ul className="mt-1 list-disc pl-5">
               {e.bullets.map((b, j) => (
@@ -87,7 +100,7 @@ export default function Results({ result, busy, error, onEdit, onRegenerate, onR
         {r.education.length > 0 && <h3 className={heading}>Education</h3>}
         {r.education.map((e, i) => (
           <p key={i} className="mt-2 text-sm">
-            {[e.degree, e.school, e.year].filter(Boolean).join(", ")}
+            {educationLine(e)}
           </p>
         ))}
 
@@ -140,8 +153,6 @@ export default function Results({ result, busy, error, onEdit, onRegenerate, onR
         </p>
       )}
       {error && <p className="mt-2 text-sm text-amber-300">{error}</p>}
-
-      <p className="mt-4 text-xs text-slate-500">PDF and text downloads are coming next.</p>
 
       <button
         type="button"

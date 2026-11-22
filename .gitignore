@@ -4,3 +4,4 @@ dist
 api/src/try.ts
 web/src/Playground.tsx
 api/src/guard-test.ts
+scratch.ts
