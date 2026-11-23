@@ -1,10 +1,7 @@
 import { useState } from "react";
-import { makePdfBlob } from "../pdf/engine";
-import { openPreview } from "../pdf/preview";
-import { buildResumeDoc } from "../pdf/resume";
-import { previewResume } from "../pdf/sample";
-import { TEMPLATES, templateById, type TemplateId } from "../pdf/styles";
-import { useToast } from "../toast";
+import { Check, ZoomIn } from "lucide-react";
+import { TEMPLATES, type TemplateId } from "../pdf/styles";
+import Lightbox from "./Lightbox";
 
 const BLURB: Record<TemplateId, string> = {
   classic: "Centered header, black and white. The safest choice.",
@@ -15,61 +12,81 @@ const BLURB: Record<TemplateId, string> = {
 type Props = {
   value: TemplateId;
   onChange: (id: TemplateId) => void;
-  withPreview?: boolean;
 };
 
-export default function TemplatePicker({ value, onChange, withPreview }: Props) {
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
-
-  async function preview() {
-    setBusy(true);
-    const outcome = await openPreview(() =>
-      makePdfBlob(buildResumeDoc(previewResume(), templateById(value)))
-    );
-    setBusy(false);
-    if (outcome === "blocked") {
-      toast.error("Your browser blocked the preview. Allow pop-ups for this site and try again.");
-    } else if (outcome === "failed") {
-      toast.error("Couldn't make the preview. Please try again.");
-    }
-  }
+export default function TemplatePicker({ value, onChange }: Props) {
+  const [zoomId, setZoomId] = useState<TemplateId | null>(null);
+  const zoomed = TEMPLATES.find((t) => t.id === zoomId) ?? TEMPLATES[0];
 
   return (
     <div>
-      <p className="mb-1 text-sm font-medium text-slate-200">Resume look</p>
-      <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Resume look">
-        {TEMPLATES.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="radio"
-            aria-checked={value === t.id}
-            onClick={() => onChange(t.id)}
-            className={`rounded-lg px-3 py-2 text-sm ${
-              value === t.id ? "bg-indigo-500 text-white" : "bg-slate-700 text-slate-200"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <p className="mb-2 text-sm font-medium text-slate-200">Resume look</p>
+
+      <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Resume look">
+        {TEMPLATES.map((t) => {
+          const selected = value === t.id;
+          return (
+            <div key={t.id} className="relative">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => onChange(t.id)}
+                className={`block w-full overflow-hidden rounded-lg bg-white ring-2 ${
+                  selected ? "ring-indigo-500" : "ring-slate-600"
+                }`}
+              >
+                <img
+                  src={`/templates/${t.id}.png`}
+                  alt={`${t.label} look, sample resume`}
+                  loading="lazy"
+                  className="aspect-[1/1.414] w-full object-cover object-top"
+                />
+              </button>
+
+              {selected && (
+                <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-full bg-indigo-500 p-1 text-white">
+                  <Check aria-hidden="true" className="h-3 w-3" />
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setZoomId(t.id)}
+                aria-label={`Preview ${t.label} look`}
+                className="absolute right-1.5 top-1.5 rounded-full bg-slate-900/80 p-1.5 text-white hover:bg-slate-900"
+              >
+                <ZoomIn aria-hidden="true" className="h-3.5 w-3.5" />
+              </button>
+
+              <p
+                className={`mt-1 text-center text-xs ${
+                  selected ? "font-semibold text-white" : "text-slate-400"
+                }`}
+              >
+                {t.label}
+              </p>
+            </div>
+          );
+        })}
       </div>
 
-      {withPreview && (
-        <>
-          <p className="mt-2 text-xs text-slate-400">
-            {BLURB[value]} Every look is single-column plain text, which ATS software reads well.
-          </p>
-          <button
-            type="button"
-            onClick={preview}
-            disabled={busy}
-            className="mt-2 rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 disabled:opacity-60"
-          >
-            {busy ? "Opening preview..." : "Preview this look (sample)"}
-          </button>
-        </>
-      )}
+      <p className="mt-2 text-xs text-slate-400">
+        {BLURB[value]} Every look is single-column plain text, which ATS software reads well.
+      </p>
+
+      <Lightbox
+        open={zoomId !== null}
+        title={`${zoomed.label} look (sample)`}
+        src={`/templates/${zoomed.id}.png`}
+        alt={`${zoomed.label} look, full sample resume`}
+        actionLabel={value === zoomed.id ? "Selected" : `Use ${zoomed.label}`}
+        onAction={() => {
+          onChange(zoomed.id);
+          setZoomId(null);
+        }}
+        onClose={() => setZoomId(null)}
+      />
     </div>
   );
 }

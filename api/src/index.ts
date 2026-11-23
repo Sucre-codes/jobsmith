@@ -1,13 +1,14 @@
 import express from "express";
 import cors from "cors";
 import "dotenv/config";
-import { FIELD_CATALOG, GenerateRequest, GenerateResponse} from "@jobsmith/shared";
+import { FIELD_CATALOG, GenerateRequest, GenerateResponse, AnswerRequest, AnswerResponse} from "@jobsmith/shared";
 import { getPool } from "./ai/keyPool.js";
 import { AiBusyError } from "./ai/client.js";
 import { analyzeJob, AnalysisError } from "./ai/analyze.js";
 import { fetchPage, LinkError } from "./link/safeFetch.js";
 import { extractJobText } from "./link/extract.js";
 import { writeResume, WriteError } from "./ai/write.js";
+import { answerQuestion, AnswerError } from "./ai/answer.js";
 
 const app = express();
 
@@ -97,6 +98,45 @@ app.post("/generate", async (req, res) => {
     }
     if (err instanceof WriteError) {
       res.status(422).json({ error: "write_failed" });
+      return;
+    }
+    console.error(err instanceof Error ? err.message : err);
+    res.status(500).json({ error: "ai_failed" });
+  }
+});
+
+app.post("/answer", async (req, res) => {
+  const parsed = AnswerRequest.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid_request" });
+    return;
+  }
+
+  const { profile } = parsed.data;
+  if (profile.experience.length + profile.education.length + profile.projects.length === 0) {
+    res.status(400).json({ error: "not_enough_details" });
+    return;
+  }
+
+  try {
+    const result = await answerQuestion(parsed.data);
+
+    const checked = AnswerResponse.safeParse(result);
+    if (!checked.success) {
+      console.error("answer: the finished answer failed its own check");
+      res.status(500).json({ error: "ai_failed" });
+      return;
+    }
+
+    res.json(checked.data);
+  } catch (err) {
+    if (err instanceof AiBusyError) {
+      res.setHeader("Retry-After", String(err.retryAfter));
+      res.status(503).json({ error: "busy", retryAfter: err.retryAfter });
+      return;
+    }
+    if (err instanceof AnswerError) {
+      res.status(422).json({ error: "answer_failed" });
       return;
     }
     console.error(err instanceof Error ? err.message : err);

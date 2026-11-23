@@ -1,7 +1,7 @@
 node_modules
 dist
 .env
-api/src/try.ts
+api/try.ts
 web/src/Playground.tsx
 api/src/guard-test.ts
 scratch.ts

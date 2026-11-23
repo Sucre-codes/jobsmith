@@ -4,7 +4,8 @@ import {
   prefillFromAnalysis,
   type FieldKey,
   type ProfileDraft,
-  type GenerateResponse
+  type GenerateResponse,
+  type QaItem
 } from "@jobsmith/shared";
 import type { Analysis } from "../api";
 import { validateBasics, validateFields } from "../validate";
@@ -27,6 +28,7 @@ type Props = {
   initialDraft?: ProfileDraft;
   initialStep?: number;
   initialResult?: GenerateResponse | null;
+  initialQa?: QaItem[];
   onRestart: () => void;
   onFinish: () => void;
 };
@@ -39,7 +41,7 @@ const PAGES: { title: string; keys: FieldKey[] }[] = [
   { title: "Your links", keys: ["github", "portfolio", "linkedin", "behance"] },
 ];
 
-export default function Wizard({ analysis, initialDraft, initialStep,   initialResult, onRestart,onFinish }: Props) {
+export default function Wizard({ analysis, initialDraft, initialStep,   initialResult, initialQa,onRestart,onFinish }: Props) {
     const toast = useToast();
   const steps = useMemo<Step[]>(() => {
     const present = new Set<FieldKey>(analysis.fields.map((f) => f.key));
@@ -70,10 +72,15 @@ export default function Wizard({ analysis, initialDraft, initialStep,   initialR
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [template, setTemplate] = useState<TemplateId>(() => getTemplateId());
+  const [qa, setQa] = useState<QaItem[]>(() => initialQa ?? []);
+
+      useEffect(() => {
+    saveSession({ analysis, draft, step: stepIndex, result, qa });
+  }, [analysis, draft, stepIndex, result, qa]);
 
     useEffect(() => {
-    saveSession({ analysis, draft, step: stepIndex, result });
-  }, [analysis, draft, stepIndex, result]);
+    if (result) saveApplication({ analysis, draft, result, qa });
+  }, [analysis, draft, result, qa]);
 
   const step = steps[stepIndex];
   const total = steps.length + 1;
@@ -124,8 +131,6 @@ export default function Wizard({ analysis, initialDraft, initialStep,   initialR
       setGenError(describeGenerateError(outcome.error, outcome.retryAfter));
       return;
     }
-
-    saveApplication({ analysis, draft, result: outcome.result });
     setResult(outcome.result);
     window.scrollTo({ top: 0 });
 
@@ -163,7 +168,6 @@ export default function Wizard({ analysis, initialDraft, initialStep,   initialR
         busy={generating}
         error={genError}
         template={template}
-        onTemplate={onTemplate}
         job={job}
         onEdit={() => {
           setResult(null);
@@ -171,6 +175,10 @@ export default function Wizard({ analysis, initialDraft, initialStep,   initialR
         }}
         onRegenerate={() => generateNow(false)}
         onRestart={onFinish}
+        analysis={analysis}
+        draft={draft}
+        qa={qa}
+        onQa={setQa}
       />
     );
   }
@@ -263,7 +271,7 @@ export default function Wizard({ analysis, initialDraft, initialStep,   initialR
               this job.
             </p>
 
-            <TemplatePicker value={template} onChange={onTemplate} withPreview />
+            <TemplatePicker value={template} onChange={onTemplate} />
 
             <button
               type="button"

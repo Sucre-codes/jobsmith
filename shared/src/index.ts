@@ -442,3 +442,63 @@ export function fileNames(name: string, company: string, jobTitle: string) {
     letterTxt: `${who}-Cover-Letter-${where}.txt`,
   };
 }
+export function experienceCopy(e: ResumeDoc["experience"][number]): string {
+  return [
+    `${e.title}, ${e.company}`,
+    dateRange(e.start, e.end, e.current),
+    ...e.bullets.map((b) => `- ${b}`),
+  ].join("\n");
+}
+
+export function projectCopy(p: ResumeDoc["projects"][number]): string {
+  return [p.url ? `${p.name} (${p.url})` : p.name, ...p.bullets.map((b) => `- ${b}`)].join("\n");
+}
+
+export const AnswerRequest = GenerateRequest.extend({
+  question: z.string().trim().min(5).max(600),
+});
+
+export type AnswerRequest = z.infer<typeof AnswerRequest>;
+
+export const AnswerResponse = z.object({
+  kind: z.enum(["answer", "declined"]),
+  text: z.string().trim().min(1).max(3000),
+});
+
+export type AnswerResponse = z.infer<typeof AnswerResponse>;
+
+export const QaItem = z.object({
+  id: z.string().min(1).max(64),
+  question: z.string().max(800),
+  kind: z.enum(["answer", "declined"]),
+  text: z.string().max(3000),
+});
+
+export type QaItem = z.infer<typeof QaItem>;
+
+export const MAX_QA = 20;
+
+export function countWords(text: string): number {
+  const t = text.trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+
+export function parseLimit(
+  question: string
+): { unit: "words" | "characters"; max: number } | null {
+  const pattern = /(?<!\d)(\d{1,5})\s*(words?|characters?|chars?)\b/gi;
+  let best: { unit: "words" | "characters"; max: number } | null = null;
+
+  for (const m of question.matchAll(pattern)) {
+    const start = m.index ?? 0;
+    const before = question.slice(Math.max(0, start - 14), start).toLowerCase();
+    if (/(at least|minimum|min\.?)\s*$/.test(before)) continue;
+
+    const max = Number(m[1]);
+    const unit = m[2].toLowerCase().startsWith("w") ? "words" : "characters";
+    if (max > 0 && (!best || (best.unit === unit && max > best.max))) best = { unit, max };
+  }
+  return best;
+}
+
+export const QaList = z.array(QaItem).max(MAX_QA);

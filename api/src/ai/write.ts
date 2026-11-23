@@ -53,7 +53,7 @@ const tidy = (s: string) =>
 
 const tidyBullet = (s: string) => tidy(s).replace(/[.;,]+$/, "");
 
-function tidyLetter(s: string): string {
+export function tidyLetter(s: string): string {
   return plain(s)
     .replace(/\r\n/g, "\n")
     .replace(/[ \t]+/g, " ")
@@ -67,7 +67,7 @@ function orderByRelevance(list: string[], jobText: string): string[] {
   return [...list].sort((a, b) => hit(a) - hit(b));
 }
 
-function buildFacts(req: GenerateRequest) {
+export function buildFacts(req: GenerateRequest) {
   const { profile, job } = req;
 
   const entries: Entry[] = profile.experience

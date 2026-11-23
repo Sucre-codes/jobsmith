@@ -1,4 +1,4 @@
-import { AnalysisResult, DraftSchema, GenerateResponse, type ProfileDraft } from "@jobsmith/shared";
+import { AnalysisResult, DraftSchema, GenerateResponse, type ProfileDraft,QaList, type QaItem } from "@jobsmith/shared";
 import type { Analysis } from "./api";
 
 
@@ -10,6 +10,7 @@ export type Session = {
   draft: ProfileDraft;
   step: number;
   result: GenerateResponse | null;
+    qa: QaItem[];
 };
 
 export function saveSession(session: Session): void {
@@ -39,6 +40,7 @@ export function loadSession(): Session | null {
     const step = Number(raw?.step);
     const resultCheck =
       raw?.result == null ? null : GenerateResponse.safeParse(raw.result);
+    const qa = QaList.safeParse(raw?.qa ?? []);
 
     if (
       raw?.v !== VERSION ||
@@ -47,17 +49,19 @@ export function loadSession(): Session | null {
       !draft.success ||
       !Number.isInteger(step) ||
         step < 0 ||
+        !qa.success ||
       (resultCheck !== null && !resultCheck.success)
     ) {
       clearSession();
       return null;
     }
 
-       return {
+     return {
       analysis: analysis.data,
       draft: draft.data,
       step,
       result: resultCheck && resultCheck.success ? resultCheck.data : null,
+      qa: qa.data,
     };
   } catch {
     return null;

@@ -63,3 +63,19 @@ export function findProblems(w: AiWriting, banned: Banned): string | null {
   }
   return parts.length > 0 ? parts.join(" ") : null;
 }
+
+export function findTextProblems(text: string, bannedTerms: string[]): string | null {
+  const terms = bannedTerms.filter((t) => mentions(text, t));
+  const glued = [...new Set(text.match(GLUED) ?? [])];
+
+  const parts: string[] = [];
+  if (terms.length > 0) {
+    parts.push(
+      `You mentioned technologies the candidate did not list: ${terms.join(", ")}. Remove every mention of them.`
+    );
+  }
+  if (glued.length > 0) {
+    parts.push(`These look like words stuck together: ${glued.join(", ")}. Fix the spacing.`);
+  }
+  return parts.length > 0 ? parts.join(" ") : null;
+}

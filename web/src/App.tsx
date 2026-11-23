@@ -42,11 +42,12 @@ export default function App() {
   function continueSaved() {
     if (!waiting) return;
     touchApplication();
-    setRestored({
+        setRestored({
       analysis: waiting.analysis,
       draft: waiting.draft,
       step: 99,
       result: waiting.result,
+      qa: waiting.qa,
     });
     setAnalysis(waiting.analysis);
     setWaiting(null);
@@ -75,6 +76,7 @@ export default function App() {
           initialDraft={restored?.draft}
           initialStep={restored?.step}
           initialResult={restored?.result}
+          initialQa={restored?.qa}
           onRestart={startNewJob}
           onFinish={applyForAnother}
         />

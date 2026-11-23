@@ -3,6 +3,7 @@ import {
   DraftSchema,
   GenerateResponse,
   type ProfileDraft,
+  QaList, type QaItem
 } from "@jobsmith/shared";
 import type { Analysis } from "./api";
 
@@ -16,6 +17,7 @@ export type SavedApplication = {
   analysis: Analysis;
   draft: ProfileDraft;
   result: GenerateResponse;
+  qa: QaItem[];
 };
 
 export function saveApplication(app: Omit<SavedApplication, "savedAt">): void {
@@ -44,6 +46,7 @@ export function loadApplication(): SavedApplication | null {
     const draft = DraftSchema.safeParse(raw?.draft);
     const result = GenerateResponse.safeParse(raw?.result);
     const savedAt = Number(raw?.savedAt);
+    const qa = QaList.safeParse(raw?.qa ?? []);
 
     if (
       raw?.v !== VERSION ||
@@ -51,6 +54,7 @@ export function loadApplication(): SavedApplication | null {
       analysis.data.kind !== "job_posting" ||
       !draft.success ||
       !result.success ||
+      !qa.success ||
       !Number.isFinite(savedAt) ||
       Date.now() - savedAt > MAX_AGE_DAYS * DAY_MS
     ) {
@@ -58,7 +62,13 @@ export function loadApplication(): SavedApplication | null {
       return null;
     }
 
-    return { savedAt, analysis: analysis.data, draft: draft.data, result: result.data };
+        return {
+      savedAt,
+      analysis: analysis.data,
+      draft: draft.data,
+      result: result.data,
+      qa: qa.data,
+    };
   } catch {
     return null;
   }
@@ -66,5 +76,7 @@ export function loadApplication(): SavedApplication | null {
 
 export function touchApplication(): void {
   const app = loadApplication();
-  if (app) saveApplication({ analysis: app.analysis, draft: app.draft, result: app.result });
+  if (app) {
+    saveApplication({ analysis: app.analysis, draft: app.draft, result: app.result, qa: app.qa });
+  }
 }
